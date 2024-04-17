@@ -17,9 +17,11 @@ class SampleSubscriber : public vehicle_interfaces::TimeSyncNode, public vehicle
 private:
     std::shared_ptr<vehicle_interfaces::MultiInteractiveSubscription<vehicle_interfaces::msg::WheelState> > sub0_;
     std::shared_ptr<vehicle_interfaces::MultiInteractiveSubscription<vehicle_interfaces::msg::Distance> > sub1_;
-    rclcpp::executors::SingleThreadedExecutor* exec_;
-    std::thread* execTh_;
+    std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> exec_;
+    vehicle_interfaces::unique_thread execTh_;
     const std::string nodeName_;
+
+    std::atomic<bool> exitF_;
 
 private:
     void _topic0Callback(const vehicle_interfaces::msg::WheelState::SharedPtr msg)
@@ -48,10 +50,11 @@ public:
         this->sub0_ = std::make_shared<vehicle_interfaces::MultiInteractiveSubscription<vehicle_interfaces::msg::WheelState> >(this->nodeName_ + "_sub_0", TOPIC_NAME_0, 10, std::bind(&SampleSubscriber::_topic0Callback, this, std::placeholders::_1));
         this->sub1_ = std::make_shared<vehicle_interfaces::MultiInteractiveSubscription<vehicle_interfaces::msg::Distance> >(this->nodeName_ + "_sub_1", TOPIC_NAME_1, 10, std::bind(&SampleSubscriber::_topic1Callback, this, std::placeholders::_1));
 
-        this->exec_ = new rclcpp::executors::SingleThreadedExecutor();
+        this->exec_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
         this->exec_->add_node(this->sub0_);
         this->exec_->add_node(this->sub1_);
-        this->execTh_ = new std::thread(vehicle_interfaces::SpinExecutor, this->exec_, this->nodeName_, 1000);
+        this->execTh_ = vehicle_interfaces::make_unique_thread(vehicle_interfaces::SpinExecutor, this->exec_, this->nodeName_, 1000);
+
         /*
          * Add following codes for QoSNode support
          */
@@ -59,6 +62,19 @@ public:
         this->addQoSNodeCommand(this->sub1_, true);
 
         RCLCPP_INFO(this->get_logger(), "[SampleSubscriber] Constructed.");
+    }
+
+    ~SampleSubscriber()
+    {
+        this->close();
+    }
+
+    void close()
+    {
+        if (this->exitF_)
+            return;
+        this->exitF_ = true;
+        this->exec_->cancel();
     }
 };
 

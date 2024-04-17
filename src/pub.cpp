@@ -19,8 +19,8 @@ class SamplePublisher : public vehicle_interfaces::TimeSyncNode, public vehicle_
 private:
     std::shared_ptr<vehicle_interfaces::MultiInteractivePublisher<vehicle_interfaces::msg::WheelState> > pub0_;
     std::shared_ptr<vehicle_interfaces::MultiInteractivePublisher<vehicle_interfaces::msg::Distance> > pub1_;
-    rclcpp::executors::SingleThreadedExecutor* exec_;
-    std::thread* execTh_;
+    std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> exec_;
+    vehicle_interfaces::unique_thread execTh_;
     rclcpp::TimerBase::SharedPtr timer0_;
     rclcpp::TimerBase::SharedPtr timer1_;
     const std::string nodeName_;
@@ -97,13 +97,14 @@ public:
         this->pub0_ = std::make_shared<vehicle_interfaces::MultiInteractivePublisher<vehicle_interfaces::msg::WheelState> >(this->nodeName_ + "_pub_0", TOPIC_NAME_0, 10);
         this->pub1_ = std::make_shared<vehicle_interfaces::MultiInteractivePublisher<vehicle_interfaces::msg::Distance> >(this->nodeName_ + "_pub_1", TOPIC_NAME_1, 10);
 
-        this->exec_ = new rclcpp::executors::SingleThreadedExecutor();
+        this->exec_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
         this->exec_->add_node(this->pub0_);
         this->exec_->add_node(this->pub1_);
-        this->execTh_ = new std::thread(vehicle_interfaces::SpinExecutor, this->exec_, this->nodeName_, 1000);
+        this->execTh_ = vehicle_interfaces::make_unique_thread(vehicle_interfaces::SpinExecutor, this->exec_, this->nodeName_, 1000);
 
         this->timer0_ = this->create_wall_timer(100ms, std::bind(&SamplePublisher::_timer0Callback, this));
         this->timer1_ = this->create_wall_timer(150ms, std::bind(&SamplePublisher::_timer1Callback, this));
+
         /*
          * Add following codes for QoSNode support
          */
@@ -122,16 +123,8 @@ public:
     {
         if (this->exitF_)
             return;
-        if (this->exec_ != nullptr)
-        {
-            this->exec_->cancel();
-            if (this->execTh_ != nullptr)
-            {
-                this->execTh_->join();
-                delete this->execTh_;
-            }
-            delete this->exec_;
-        }
+        this->exitF_ = true;
+        this->exec_->cancel();
     }
 };
 

@@ -101,11 +101,11 @@ int main(int argc, char* argv[])
     rclcpp::init(argc, argv);
     auto params = std::make_shared<vehicle_interfaces::GenericParams>("qoscontrol_params_node");
     auto control = std::make_shared<QoSControlNode>("qoscontrol_0_node", "qos_0");
-    rclcpp::executors::SingleThreadedExecutor* exec = new rclcpp::executors::SingleThreadedExecutor();
+    auto exec = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
     exec->add_node(control);
 
     bool stopF = false;
-    auto th = std::thread(vehicle_interfaces::SpinExecutor2, exec, "control", 1000.0, std::ref(stopF));
+    auto th = vehicle_interfaces::make_unique_thread(vehicle_interfaces::SpinExecutor2, exec, "control", 1000.0, std::ref(stopF));
     std::this_thread::sleep_for(2000ms);
 
     std::random_device rd_;
@@ -238,7 +238,5 @@ int main(int argc, char* argv[])
         std::this_thread::sleep_for(100ms);
     }
     exec->cancel();
-    th.join();
-    delete exec;
     rclcpp::shutdown();
 }

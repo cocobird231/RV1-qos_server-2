@@ -1,7 +1,7 @@
 #ver=2.0
 ---
 launch_node : "server" # Server: server; Test: pub, sub, control
-recordFilePath : "qosserver/qos/record.json"
+recordFilePath : "qosserver2/qos/record.json"
 
 # Settings for Params class under vehicle_interfaces/params.h
 generic_prop:
